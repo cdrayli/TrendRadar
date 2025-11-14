@@ -22,38 +22,60 @@ on:
           - WARNING
           - ERROR
 
+# 添加权限设置
+permissions:
+  contents: write
+
 jobs:
-  run-script:
-    runs-on: ubuntu-latest  # 运行环境
+  crawl:
+    runs-on: ubuntu-latest
 
     steps:
-      # 1. 检出仓库代码
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      # 2. 设置 Python 环境
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.12'  # 指定 Python 版本
+          python-version: "3.9"
 
-      # 3. 安装依赖（如有）
       - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      # 4. 运行 main.py 并传递参数
-      - name: Run Python script
         run: |
-          python main.py \
-            --input ${{ github.event.inputs.input_path }} \
-            --output ${{ github.event.inputs.output_path }} \
-            --log-level ${{ github.event.inputs.log_level }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 注入仓库令牌
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # playwright install --with-deps
 
-      # 5. 上传结果文件（可选）
-      - name: Upload result artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: script-results
-          path: ${{ github.event.inputs.output_path }}
+      - name: Verify required files
+        run: |
+          echo "🔍 检查必需的配置文件..."
+
+          if [ ! -f config/config.yaml ]; then
+            echo "❌ 错误: config/config.yaml 文件不存在"
+            echo "请参考项目文档创建配置文件"
+            exit 1
+          fi
+
+          if [ ! -f config/frequency_words.txt ]; then
+            echo "❌ 错误: config/frequency_words.txt 文件不存在"
+            echo "请参考项目文档创建频率词配置文件"
+            exit 1
+          fi
+
+          echo "✅ 配置文件检查通过"
+
+      - name: Run crawler
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DINGTALK_WEBHOOK_URL: ${{ secrets.DINGTALK_WEBHOOK_URL }}
+          WEWORK_WEBHOOK_URL: ${{ secrets.WEWORK_WEBHOOK_URL }}
+          GITHUB_ACTIONS: true
+        run: python main.py
+
+      # - name: Commit and push if changes
+      #   run: |
+      #     git config --global user.name 'GitHub Actions'
+      #     git config --global user.email 'actions@github.com'
+      #     git add -A
+      #     git diff --quiet && git diff --staged --quiet || (git commit -m "Auto update by GitHub Actions at $(TZ=Asia/Shanghai date)" && git push)
